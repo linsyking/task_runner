@@ -1,3 +1,3 @@
 # Task Runner
 
-A C++ libraryto run dependent tasks in parallel. Used in my game engine.
+A C++ library to run dependent tasks in parallel. Used in my game engine.
