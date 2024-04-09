@@ -3,18 +3,22 @@
 #include <condition_variable>
 #include <mutex>
 #include <queue>
+#include <thread>
+#include <vector>
 #include "task.hpp"
 
 class runner {
 private:
     // A thread-safe queue of task chains
-    static std::queue<task_chain>  task_chains;
-    static std::mutex              mtx;
-    static std::condition_variable has_task;
+    std::queue<task_chain>   task_chains;
+    std::mutex               mtx;
+    std::condition_variable  has_task;
+    std::vector<std::thread> threads;
 
-    static bool running = false;
+    void do_tasks();
 
 public:
+    static bool running;
     /// Start the runner with a number of threads
     ///
     /// Only run once
