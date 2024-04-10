@@ -49,6 +49,7 @@ int main() {
     runner::add_order(t2, t3);
     runner::add_order(t2, t4);
     runner::commit();
+    runner::commit();
     std::cout << "Commit done, waiting...\n";
     runner::wait();
     std::cout << "Wait done, quiting\n";

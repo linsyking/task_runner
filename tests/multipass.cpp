@@ -55,7 +55,7 @@ int main() {
     runner::add_order(t2, t4);
     runner::add_order(t1, t2);
     runner::commit();
-    runner::wait();
+    // Directly quit
     runner::quit();
     std::cout << "Quited successfully\n";
     return 0;

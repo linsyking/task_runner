@@ -164,9 +164,12 @@ void runner::wait() {
 
 void runner::quit() {
     runner &r = runner::get();
-    if (!r.started || r.running) {
-        std::cerr << "runner::quit() can only be called after wait()\n";
+    if (!r.started) {
+        std::cerr << "runner::quit() can only be called after boot()\n";
         return;
+    }
+    if (r.running) {
+        wait();
     }
     r.terminated = true;
     r.has_task.notify_all();
