@@ -70,6 +70,9 @@ void runner::boot(size_t num_threads) {
 }
 void runner::add_task(task_ptr a) {
     runner &r = runner::get();
+    if (r.terminated) {
+        return;
+    }
     if (!r.started) {
         std::cerr << "runner::add_order() can only be called after boot()\n";
         return;
@@ -87,6 +90,9 @@ void runner::add_task(task_ptr a) {
 
 void runner::add_order(task_ptr a, task_ptr b) {
     runner &r = runner::get();
+    if (r.terminated) {
+        return;
+    }
     r.add_task(a);
     r.add_task(b);
     if (r.running || !r.started) {
@@ -114,6 +120,9 @@ task_ex_ptr runner::find_next(task_ex_ptr task) {
 
 void runner::commit() {
     runner &r = runner::get();
+    if (r.terminated) {
+        return;
+    }
     if (!r.started) {
         std::cerr << "runner::commit() can only be called after boot()\n";
         return;
@@ -147,6 +156,9 @@ void runner::commit() {
 
 void runner::wait() {
     runner &r = runner::get();
+    if (r.terminated) {
+        return;
+    }
     if (!r.started || !r.running) {
         std::cerr << "runner::wait() can only be called after commit()\n";
         return;
@@ -164,6 +176,9 @@ void runner::wait() {
 
 void runner::quit() {
     runner &r = runner::get();
+    if (r.terminated) {
+        return;
+    }
     if (!r.started) {
         std::cerr << "runner::quit() can only be called after boot()\n";
         return;
