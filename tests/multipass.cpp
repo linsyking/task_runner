@@ -1,4 +1,5 @@
 
+#include <cassert>
 #include <cmath>
 #include <iostream>
 #include "runner.hpp"
@@ -22,8 +23,8 @@ void fun1() {
         b += 0.333;
         c[i] = b;
     }
-    for (int i = 0; i < 300000000; i++) {
-        c[(i % 999) + 1] = std::sqrt(i * 0.123) * c[(i % 333)] / 10230234;
+    for (int i = 0; i < 100000000; i++) {
+        c[(i % 999) + 1] = std::sqrt(i * 0.123) * c[(i % 333)] / 3444;
         a                = std::sqrt(a + c[(i % 999) + 1]);
     }
     std::cout << a << "\n";
@@ -40,10 +41,6 @@ int main() {
     task_ptr t2 = std::make_shared<fun_task>(fun1);
     task_ptr t3 = std::make_shared<fun_task>(fun2);
     task_ptr t4 = std::make_shared<fun_task>(fun2);
-    runner::add_task(t1);
-    runner::add_task(t2);
-    runner::add_task(t3);
-    runner::add_task(t4);
     runner::add_order(t1, t3);
     runner::add_order(t1, t4);
     runner::add_order(t2, t3);
@@ -51,8 +48,15 @@ int main() {
     runner::commit();
     std::cout << "Commit done, waiting...\n";
     runner::wait();
-    std::cout << "Wait done, quiting\n";
-    runner::join();
+    std::cout << "Second pass...\n";
+    runner::add_order(t1, t3);
+    runner::add_order(t1, t4);
+    runner::add_order(t2, t3);
+    runner::add_order(t2, t4);
+    runner::add_order(t1, t2);
+    runner::commit();
+    runner::wait();
+    runner::quit();
     std::cout << "Quited successfully\n";
     return 0;
 }

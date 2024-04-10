@@ -20,34 +20,33 @@ void task_single_runner() {
         r.task_chains.pop();
         lock.unlock();
         while (!chain.empty()) {
-            task_ptr task = chain.front();
+            task_ex_ptr task = chain.front();
             chain.pop();
-            task->run();
+            task->self->run();
 
             lock.lock();
-            r.done_tasks.insert(task);
-            if (r.succ.find(task) != r.succ.end()) {
-                for (auto &t : r.succ[task]) {
-                    if (r.visited.find(t) != r.visited.end()) {
-                        continue;
+            r.done_tasks++;
+            for (auto &t : task->succ) {
+                if (t->visited) {
+                    continue;
+                }
+                std::unique_lock<std::mutex> _(t->mtx);
+                t->pred_num--;
+                if (t->pred_num == 0) {
+                    // Start point t
+                    // lock.lock();
+                    std::queue<task_ex_ptr> q;
+                    task_ex_ptr             tt = t;
+                    while (tt) {
+                        q.push(tt);
+                        tt = r.find_next(tt);
                     }
-                    std::unique_lock<std::mutex> _(t->mtx);
-                    t->pred_num--;
-                    if (t->pred_num == 0) {
-                        // Start point t
-                        // lock.lock();
-                        std::queue<task_ptr> q;
-                        task_ptr             tt = t;
-                        while (tt) {
-                            q.push(tt);
-                            tt = r.find_next(tt);
-                        }
-                        r.task_chains.push(q);
-                        r.has_task.notify_one();
-                        // lock.unlock();
-                    }
+                    r.task_chains.push(q);
+                    r.has_task.notify_one();
+                    // lock.unlock();
                 }
             }
+
             lock.unlock();
         }
         lock.lock();
@@ -79,21 +78,33 @@ void runner::add_task(task_ptr a) {
         std::cerr << "runner::add_order() can only be called while not running\n";
         return;
     }
-    r.all_tasks.insert(a);
+    if (r.task_map.find(a) == r.task_map.end()) {
+        r.task_map[a]       = std::make_shared<task_ex>();
+        r.task_map[a]->self = a;
+        r.all_tasks.insert(r.task_map[a]);
+    }
 }
 
 void runner::add_order(task_ptr a, task_ptr b) {
     runner &r = runner::get();
     r.add_task(a);
     r.add_task(b);
-    b->pred_num++;
-    r.succ[a].push_back(b);
+    if (r.running || !r.started) {
+        return;
+    }
+    for (auto &t : r.task_map[a]->succ) {
+        if (t == r.task_map[b]) {
+            return;
+        }
+    }
+    r.task_map[b]->pred_num++;
+    r.task_map[a]->succ.push_back(r.task_map[b]);
 }
 
-task_ptr runner::find_next(task_ptr task) {
-    visited.insert(task);
-    for (auto &t : succ[task]) {
-        if (visited.find(t) == visited.end()) {
+task_ex_ptr runner::find_next(task_ex_ptr task) {
+    task->visited = true;
+    for (auto &t : task->succ) {
+        if (!t->visited) {
             // Found t
             return t;
         }
@@ -119,8 +130,8 @@ void runner::commit() {
         if (task->pred_num == 0) {
             // Start point
             // std::cout << "Gen queue: \n";
-            std::queue<task_ptr> q;
-            task_ptr             t = task;
+            std::queue<task_ex_ptr> q;
+            task_ex_ptr             t = task;
             while (t) {
                 // std::cout << t << " ";
                 q.push(t);
@@ -141,17 +152,22 @@ void runner::wait() {
         return;
     }
     std::unique_lock<std::mutex> lock(r.mtx);
-    while (r.done_tasks.size() < r.all_tasks.size()) {
+    while (r.done_tasks < r.all_tasks.size()) {
         r.done.wait(lock);
     }
     // No more tasks, cleanup
-    r.succ.clear();
+    r.task_map.clear();
     r.all_tasks.clear();
-    r.running = false;
+    r.done_tasks = 0;
+    r.running    = false;
 }
 
-void runner::join() {
-    runner &r    = runner::get();
+void runner::quit() {
+    runner &r = runner::get();
+    if (!r.started || r.running) {
+        std::cerr << "runner::quit() can only be called after wait()\n";
+        return;
+    }
     r.terminated = true;
     r.has_task.notify_all();
     for (auto &t : r.threads) {

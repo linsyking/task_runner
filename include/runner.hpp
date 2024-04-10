@@ -23,16 +23,15 @@ public:
     std::mutex mtx;
 
     /// A thread-safe queue of task chains
-    std::queue<task_chain>                              task_chains;
-    std::unordered_map<task_ptr, std::vector<task_ptr>> succ;
-    std::unordered_set<task_ptr>                        all_tasks;
-    std::unordered_set<task_ptr>                        visited;
-    std::unordered_set<task_ptr>                        done_tasks;
+    std::queue<task_chain>                    task_chains;
+    std::unordered_map<task_ptr, task_ex_ptr> task_map;
+    std::unordered_set<task_ex_ptr>           all_tasks;
+    size_t                                    done_tasks = 0;
 
     std::condition_variable has_task;
     std::condition_variable done;
 
-    task_ptr find_next(task_ptr);
+    task_ex_ptr find_next(task_ex_ptr);
 
     /// Start the runner with a number of threads
     ///
@@ -52,7 +51,7 @@ public:
     /// Wait for all the tasks to finish so that we can commit again
     static void wait();
 
-    static void join();
+    static void quit();
 
     static runner &get() {
         static runner instance;
