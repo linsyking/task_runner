@@ -4,22 +4,34 @@
 #include <mutex>
 #include <queue>
 #include <thread>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include "task.hpp"
 
 class runner {
 private:
     runner();
-    // A thread-safe queue of task chains
-    std::queue<task_chain>   task_chains;
-    std::mutex               mtx;
-    std::condition_variable  has_task;
-    std::condition_variable  no_task;
+
     std::vector<std::thread> threads;
-    bool                     started = false;
-    bool                     running = false;
+
+    bool started = false;
 
 public:
+    bool running = false;
+    std::mutex mtx;
+
+    /// A thread-safe queue of task chains
+    std::queue<task_chain>                              task_chains;
+    std::unordered_map<task_ptr, std::vector<task_ptr>> succ;
+    std::unordered_set<task_ptr>                        all_tasks;
+    std::unordered_set<task_ptr>                        visited;
+
+    std::condition_variable has_task;
+    std::condition_variable no_task;
+
+    task_ptr find_next(task_ptr);
+
     /// Start the runner with a number of threads
     ///
     /// Only run once
@@ -36,7 +48,7 @@ public:
     /// Wait for all the tasks to finish so that we can commit again
     void wait();
 
-    static runner &get_instance() {
+    static runner &get() {
         static runner instance;
         return instance;
     }
