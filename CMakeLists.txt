@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(task_runner)
-add_library(trunner src/task.cpp src/runner.cpp)
+add_library(trunner src/runner.cpp)
 include_directories(include)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEBUG -Wall -Wextra -pedantic -O3")
 
