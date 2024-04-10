@@ -1,5 +1,4 @@
 #include "runner.hpp"
-#include <iostream>
 #include <queue>
 #include "task.hpp"
 
@@ -10,11 +9,9 @@ void task_single_runner() {
         while (r.task_chains.empty()) {
             r.has_task.wait(lock);
             if (r.terminated) {
-                std::cout << "Runner exit\n";
                 return;
             }
         }
-        std::cout << "Runner get task\n";
         // Get a task chain
         task_chain chain = r.task_chains.front();
         r.task_chains.pop();
@@ -59,7 +56,6 @@ void task_single_runner() {
 void runner::boot(size_t num_threads) {
     runner &r = runner::get();
     if (r.started) {
-        std::cerr << "runner::boot() can only be called once\n";
         return;
     }
     r.started = true;
@@ -70,15 +66,7 @@ void runner::boot(size_t num_threads) {
 }
 void runner::add_task(task_ptr a) {
     runner &r = runner::get();
-    if (r.terminated) {
-        return;
-    }
-    if (!r.started) {
-        std::cerr << "runner::add_order() can only be called after boot()\n";
-        return;
-    }
-    if (r.running) {
-        std::cerr << "runner::add_order() can only be called while not running\n";
+    if (r.terminated || !r.started || r.running) {
         return;
     }
     if (r.task_map.find(a) == r.task_map.end()) {
@@ -120,18 +108,7 @@ task_ex_ptr runner::find_next(task_ex_ptr task) {
 
 void runner::commit() {
     runner &r = runner::get();
-    if (r.terminated) {
-        return;
-    }
-    if (!r.started) {
-        std::cerr << "runner::commit() can only be called after boot()\n";
-        return;
-    }
-    if (r.running) {
-        std::cerr << "runner::commit() can only be called while not running\n";
-        return;
-    }
-    if (r.all_tasks.empty()) {
+    if (r.terminated || !r.started || r.running || r.all_tasks.empty()) {
         return;
     }
     // std::cout << "Task number: " << r.all_tasks.size() << "\n";
@@ -156,11 +133,7 @@ void runner::commit() {
 
 void runner::wait() {
     runner &r = runner::get();
-    if (r.terminated) {
-        return;
-    }
-    if (!r.started || !r.running) {
-        std::cerr << "runner::wait() can only be called after commit()\n";
+    if (r.terminated || !r.started || !r.running) {
         return;
     }
     std::unique_lock<std::mutex> lock(r.mtx);
@@ -176,11 +149,7 @@ void runner::wait() {
 
 void runner::quit() {
     runner &r = runner::get();
-    if (r.terminated) {
-        return;
-    }
-    if (!r.started) {
-        std::cerr << "runner::quit() can only be called after boot()\n";
+    if (r.terminated || !r.started) {
         return;
     }
     if (r.running) {
