@@ -9,29 +9,38 @@
 
 class runner {
 private:
+    runner();
     // A thread-safe queue of task chains
     std::queue<task_chain>   task_chains;
     std::mutex               mtx;
     std::condition_variable  has_task;
+    std::condition_variable  no_task;
     std::vector<std::thread> threads;
-
-    void do_tasks();
+    bool                     started = false;
+    bool                     running = false;
 
 public:
-    static bool running;
     /// Start the runner with a number of threads
     ///
     /// Only run once
-    static void start(uint num_threads = 4);
+    void boot(size_t num_threads = 4);
 
     /// Add requirement: run a before b
     ///
     /// Call this function after calling run()
-    static void add_order(task_ptr a, task_ptr b);
+    void add_order(task_ptr a, task_ptr b);
 
-    /// Run all the tasks
-    static void run();
+    /// Commit and run all the tasks
+    void commit();
 
-    /// Wait for all the tasks to finish and then stop the runners
-    static void wait_and_stop();
+    /// Wait for all the tasks to finish so that we can commit again
+    void wait();
+
+    static runner &get_instance() {
+        static runner instance;
+        return instance;
+    }
+
+    runner(runner const &)         = delete;
+    void operator=(runner const &) = delete;
 };
