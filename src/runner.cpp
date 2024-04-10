@@ -114,19 +114,19 @@ void runner::commit() {
     if (r.all_tasks.empty()) {
         return;
     }
-    std::cout << "Task number: " << r.all_tasks.size() << "\n";
+    // std::cout << "Task number: " << r.all_tasks.size() << "\n";
     for (auto &task : r.all_tasks) {
         if (task->pred_num == 0) {
             // Start point
-            std::cout << "Gen queue: \n";
+            // std::cout << "Gen queue: \n";
             std::queue<task_ptr> q;
             task_ptr             t = task;
             while (t) {
-                std::cout << t << " ";
+                // std::cout << t << " ";
                 q.push(t);
                 t = r.find_next(t);
             }
-            std::cout << "\n";
+            // std::cout << "\n";
             r.task_chains.push(q);
         }
     }

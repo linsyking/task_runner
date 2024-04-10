@@ -36,14 +36,23 @@ void fun2() {
 
 int main() {
     runner::boot();
-    task_ptr a = std::make_shared<fun_task>(fun1);
-    task_ptr b = std::make_shared<fun_task>(fun1);
-    runner::add_task(a);
-    runner::add_task(b);
-    runner::add_order(a, b);
+    task_ptr t1 = std::make_shared<fun_task>(fun1);
+    task_ptr t2 = std::make_shared<fun_task>(fun1);
+    task_ptr t3 = std::make_shared<fun_task>(fun2);
+    task_ptr t4 = std::make_shared<fun_task>(fun2);
+    runner::add_task(t1);
+    runner::add_task(t2);
+    runner::add_task(t3);
+    runner::add_task(t4);
+    runner::add_order(t1, t3);
+    runner::add_order(t1, t4);
+    runner::add_order(t2, t3);
+    runner::add_order(t2, t4);
     runner::commit();
     std::cout << "Commit done, waiting...\n";
     runner::wait();
+    std::cout << "Wait done, quiting\n";
     runner::join();
+    std::cout << "Quited successfully\n";
     return 0;
 }
