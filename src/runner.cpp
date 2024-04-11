@@ -5,7 +5,7 @@
 void task_single_runner() {
     runner                      &r = runner::get();
     std::unique_lock<std::mutex> lock(r.mtx);
-    while (1) {
+    while (!r.terminated) {
         while (r.task_chains.empty()) {
             r.has_task.wait(lock);
             if (r.terminated) {
