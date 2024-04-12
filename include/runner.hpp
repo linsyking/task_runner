@@ -2,6 +2,7 @@
 
 #include <condition_variable>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <thread>
 #include <unordered_map>
@@ -24,16 +25,15 @@ private:
     runner() {}
 
     std::vector<std::thread> threads;
-    bool                     is_all_done();
+    static bool              is_all_done();
 
 public:
     bool started = false;
     bool running = false;
 
-    std::mutex   runtime_mtx;
-    task_runtime runtime;
-    std::queue<task_runtime> to_run;
-
+    std::mutex                  runtime_mtx;
+    std::optional<task_runtime> runtime = std::nullopt;
+    std::queue<task_runtime>    to_run;
 
     size_t thread_num();
 

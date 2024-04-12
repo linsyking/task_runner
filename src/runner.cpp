@@ -20,15 +20,17 @@ size_t runner::thread_num() {
 void task_single_runner() {
     runner &r         = runner::get();
     size_t  thread_id = r.thread_num();
-    std::cout << "Thread " << thread_id << " started\n";
+
     std::unique_lock<std::mutex> lock(r.runtime_mtx);
-    std::vector<task_ex_ptr>    &named_tasks   = r.runtime.all_named_tasks[thread_id];
-    std::vector<task_ex_ptr>    &unnamed_tasks = r.runtime.all_unnamed_tasks;
+    std::cout << "Thread " << thread_id << " started\n";
     while (r.started) {
         task_ex_ptr task;
         while (1) {
-            if (!named_tasks.empty() || !unnamed_tasks.empty()) {
+            if (r.runtime.has_value() && (!r.runtime->all_named_tasks[thread_id].empty() ||
+                                          !r.runtime->all_unnamed_tasks.empty())) {
                 // Get a task
+                auto &named_tasks   = r.runtime->all_named_tasks[thread_id];
+                auto &unnamed_tasks = r.runtime->all_unnamed_tasks;
                 for (auto it = named_tasks.begin(); it != named_tasks.end(); ++it) {
                     std::shared_lock<std::shared_mutex> _((*it)->mtx);
                     if ((*it)->pred_num == 0) {
@@ -55,6 +57,7 @@ void task_single_runner() {
             }
             r.has_task.wait(lock);
             if (!r.started) {
+                std::cout << "Thread " << thread_id << " quited\n";
                 return;
             }
         }
@@ -70,9 +73,10 @@ void task_single_runner() {
             }
         }
         lock.lock();
-        r.runtime.task_remaining--;
-        if (r.runtime.task_remaining == 0) {
+        r.runtime->task_remaining--;
+        if (r.runtime->task_remaining == 0) {
             if (r.to_run.empty()) {
+                r.runtime = std::nullopt;
                 r.all_done.notify_all();
             } else {
                 r.runtime = r.to_run.front();
@@ -81,6 +85,7 @@ void task_single_runner() {
             }
         }
     }
+    std::cout << "Thread " << thread_id << " quited\n";
 }
 
 void runner::boot(size_t num_threads) {
@@ -101,6 +106,10 @@ void runner::add_task(task_ptr a) {
         return;
     }
     if (r.task_map.find(a) == r.task_map.end()) {
+        if (a->run_on.has_value() && a->run_on.value() >= r.threads.size()) {
+            std::cerr << "Thread " << a->run_on.value() << " not found\n";
+            exit(1);
+        }
         r.task_map[a]       = std::make_shared<task_ex>();
         r.task_map[a]->self = a;
         r.all_tasks.insert(r.task_map[a]);
@@ -129,7 +138,7 @@ void runner::commit() {
         return;
     }
     task_runtime rt;
-    // std::cout << "Task number: " << r.all_tasks.size() << "\n";
+    rt.all_named_tasks.resize(r.threads.size());
     for (auto &task : r.all_tasks) {
         if (task->self->run_on.has_value()) {
             rt.all_named_tasks[task->self->run_on.value()].push_back(task);
@@ -147,7 +156,11 @@ void runner::commit() {
     rt.task_remaining = r.all_tasks.size();
     {
         std::unique_lock<std::mutex> lock(r.runtime_mtx);
-        r.to_run.push(rt);
+        if (r.runtime.has_value()) {
+            r.to_run.push(rt);
+        } else {
+            r.runtime = rt;
+        }
     }
     r.task_map.clear();
     r.all_tasks.clear();
@@ -158,7 +171,7 @@ void runner::commit() {
 bool runner::is_all_done() {
     // Requires lock acquired beforehand
     runner &r = runner::get();
-    return r.runtime.task_remaining == 0 && r.to_run.empty();
+    return !r.runtime.has_value() && r.to_run.empty();
 }
 
 void runner::wait() {
@@ -173,6 +186,7 @@ void runner::wait() {
     // No more tasks, cleanup
     r.task_map.clear();
     r.all_tasks.clear();
+    r.runtime = std::nullopt;
     r.running = false;
 }
 
@@ -184,7 +198,10 @@ void runner::quit() {
     if (r.running) {
         wait();
     }
-    r.started = false;
+    {
+        std::unique_lock<std::mutex> lock(r.runtime_mtx);
+        r.started = false;
+    }
     r.has_task.notify_all();
     for (auto &t : r.threads) {
         t.join();
