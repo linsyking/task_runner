@@ -2,7 +2,6 @@
 
 #include <condition_variable>
 #include <mutex>
-#include <queue>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
@@ -10,12 +9,14 @@
 #include "task.hpp"
 #include "ts_queue.hpp"
 
-struct task_tuntime{
+struct task_runtime {
     /// Tasks that are specified to run on a specific thread
     std::vector<std::vector<task_ex_ptr>> all_named_tasks;
 
     /// Tasks that are not specified to run on a specific thread
     std::vector<task_ex_ptr> all_unnamed_tasks;
+
+    size_t task_remaining = 0;
 };
 
 class runner {
@@ -23,25 +24,25 @@ private:
     runner() {}
 
     std::vector<std::thread> threads;
-
-    bool started = false;
+    bool                     is_all_done();
 
 public:
-    bool       running    = false;
-    bool       terminated = false;
-    std::mutex mtx;
+    bool started = false;
+    bool running = false;
 
-    task_tuntime runtime;
-    SafeQueue<task_tuntime> to_run;
+    std::mutex   runtime_mtx;
+    task_runtime runtime;
+
+    SafeQueue<task_runtime> to_run;
 
     size_t thread_num();
 
+    // These structures can only be accessed by the runner thread, so no need to lock
     std::unordered_map<task_ptr, task_ex_ptr> task_map;
     std::unordered_set<task_ex_ptr>           all_tasks;
-    size_t                                    done_tasks = 0;
 
     std::condition_variable has_task;
-    std::condition_variable done;
+    std::condition_variable all_done;
 
     /// Start the runner with a number of threads
     ///
@@ -56,6 +57,8 @@ public:
     static void add_task(task_ptr a);
 
     /// Commit and run all the tasks
+    ///
+    /// You may call this function while running
     static void commit();
 
     /// Wait for all the tasks to finish

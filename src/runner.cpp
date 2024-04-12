@@ -1,7 +1,8 @@
 #include "runner.hpp"
+#include <algorithm>
 #include <cassert>
 #include <iostream>
-#include <queue>
+#include <mutex>
 #include "task.hpp"
 
 size_t runner::thread_num() {
@@ -18,11 +19,11 @@ size_t runner::thread_num() {
 void task_single_runner() {
     runner                      &r         = runner::get();
     size_t                       thread_id = r.thread_num();
-    std::unique_lock<std::mutex> lock(r.mtx);
-    while (!r.terminated) {
+    std::unique_lock<std::mutex> lock(r.runtime_mtx);
+    while (r.started) {
         while (r.task_chains.empty()) {
             r.has_task.wait(lock);
-            if (r.terminated) {
+            if (!r.started) {
                 return;
             }
         }
@@ -62,7 +63,7 @@ void task_single_runner() {
         }
         lock.lock();
         if (r.task_chains.empty()) {
-            r.done.notify_all();
+            r.all_done.notify_all();
         }
     }
 }
@@ -78,9 +79,10 @@ void runner::boot(size_t num_threads) {
         r.threads.emplace_back(task_single_runner);
     }
 }
+
 void runner::add_task(task_ptr a) {
     runner &r = runner::get();
-    if (r.terminated || !r.started || r.running) {
+    if (!r.started) {
         return;
     }
     if (r.task_map.find(a) == r.task_map.end()) {
@@ -92,12 +94,9 @@ void runner::add_task(task_ptr a) {
 
 void runner::add_order(task_ptr a, task_ptr b) {
     runner &r = runner::get();
-    if (r.terminated) {
-        return;
-    }
     r.add_task(a);
     r.add_task(b);
-    if (r.running || !r.started) {
+    if (!r.started) {
         return;
     }
     for (auto &t : r.task_map[a]->succ) {
@@ -109,69 +108,64 @@ void runner::add_order(task_ptr a, task_ptr b) {
     r.task_map[a]->succ.push_back(r.task_map[b]);
 }
 
-task_ex_ptr runner::find_next(task_ex_ptr task) {
-    task->visited = true;
-    for (auto &t : task->succ) {
-        if (!t->visited) {
-            // Found t
-            return t;
-        }
-    }
-    return nullptr;
-}
-
 void runner::commit() {
     runner &r = runner::get();
-    if (r.terminated || !r.started || r.running || r.all_tasks.empty()) {
+    if (!r.started || r.all_tasks.empty()) {
         return;
     }
+    task_runtime rt;
     // std::cout << "Task number: " << r.all_tasks.size() << "\n";
     for (auto &task : r.all_tasks) {
-        if (task->pred_num == 0) {
-            // Start point
-            // std::cout << "Gen queue: \n";
-            std::queue<task_ex_ptr> q;
-            task_ex_ptr             t = task;
-            while (t) {
-                // std::cout << t << " ";
-                q.push(t);
-                t = r.find_next(t);
-            }
-            // std::cout << "\n";
-            r.task_chains.push(q);
+        if (task->self->run_on.has_value()) {
+            rt.all_named_tasks[task->self->run_on.value()].push_back(task);
+        } else {
+            rt.all_unnamed_tasks.push_back(task);
         }
     }
+    std::sort(rt.all_unnamed_tasks.begin(), rt.all_unnamed_tasks.end(),
+              [](task_ex_ptr &a, task_ex_ptr &b) { return a->pred_num < b->pred_num; });
+    for (size_t i = 0; i < rt.all_named_tasks.size(); ++i) {
+        std::sort(rt.all_named_tasks[i].begin(), rt.all_named_tasks[i].end(),
+                  [](task_ex_ptr &a, task_ex_ptr &b) { return a->pred_num < b->pred_num; });
+    }
+    // std::unique_lock<std::mutex> lock(r.runtime_mtx);
+    r.to_run.enqueue(rt);
     r.running = true;
     r.has_task.notify_all();
 }
 
+bool runner::is_all_done(){
+    runner &r = runner::get();
+    return r.runtime.task_remaining == 0 && r.to_run.empty();
+}
+
 void runner::wait() {
     runner &r = runner::get();
-    if (r.terminated || !r.started || !r.running) {
+    if (!r.started || !r.running) {
         return;
     }
-    std::unique_lock<std::mutex> lock(r.mtx);
-    while (r.done_tasks < r.all_tasks.size()) {
-        r.done.wait(lock);
+    std::unique_lock<std::mutex> lock(r.runtime_mtx);
+    while (!r.is_all_done()) {
+        r.all_done.wait(lock);
     }
     // No more tasks, cleanup
     r.task_map.clear();
     r.all_tasks.clear();
-    r.done_tasks = 0;
     r.running    = false;
 }
 
 void runner::quit() {
     runner &r = runner::get();
-    if (r.terminated || !r.started) {
+    if (!r.started) {
         return;
     }
     if (r.running) {
         wait();
     }
-    r.terminated = true;
+    r.started = false;
     r.has_task.notify_all();
     for (auto &t : r.threads) {
         t.join();
     }
+    r.threads.clear();
 }
