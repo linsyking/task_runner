@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <optional>
-#include <queue>
 #include <shared_mutex>
 
 class task;
@@ -18,7 +17,6 @@ public:
 
 struct task_ex;
 using task_ex_ptr = std::shared_ptr<task_ex>;
-using task_chain  = std::queue<task_ex_ptr>;
 
 struct task_ex {
     /// Successors
