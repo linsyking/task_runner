@@ -21,3 +21,6 @@ target_link_libraries(simple trunner)
 
 add_executable(mpass2 tests/mpass2.cpp)
 target_link_libraries(mpass2 trunner)
+
+add_executable(fixed_thr tests/fixed_thr.cpp)
+target_link_libraries(fixed_thr trunner)
