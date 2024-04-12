@@ -3,6 +3,7 @@
 #include <cassert>
 #include <iostream>
 #include <mutex>
+#include <shared_mutex>
 #include "task.hpp"
 
 size_t runner::thread_num() {
@@ -17,53 +18,67 @@ size_t runner::thread_num() {
 }
 
 void task_single_runner() {
-    runner                      &r         = runner::get();
-    size_t                       thread_id = r.thread_num();
+    runner &r         = runner::get();
+    size_t  thread_id = r.thread_num();
+    std::cout << "Thread " << thread_id << " started\n";
     std::unique_lock<std::mutex> lock(r.runtime_mtx);
+    std::vector<task_ex_ptr>    &named_tasks   = r.runtime.all_named_tasks[thread_id];
+    std::vector<task_ex_ptr>    &unnamed_tasks = r.runtime.all_unnamed_tasks;
     while (r.started) {
-        while (r.task_chains.empty()) {
+        task_ex_ptr task;
+        while (1) {
+            if (!named_tasks.empty() || !unnamed_tasks.empty()) {
+                // Get a task
+                for (auto it = named_tasks.begin(); it != named_tasks.end(); ++it) {
+                    std::shared_lock<std::shared_mutex> _((*it)->mtx);
+                    if ((*it)->pred_num == 0) {
+                        task = *it;
+                        named_tasks.erase(it);
+                        break;
+                    }
+                }
+                if (!task) {
+                    // Find unnamed task
+                    for (auto it = unnamed_tasks.begin(); it != unnamed_tasks.end(); ++it) {
+                        std::shared_lock<std::shared_mutex> _((*it)->mtx);
+                        if ((*it)->pred_num == 0) {
+                            task = *it;
+                            unnamed_tasks.erase(it);
+                            break;
+                        }
+                    }
+                }
+                if (task) {
+                    // Found a task, break
+                    break;
+                }
+            }
             r.has_task.wait(lock);
             if (!r.started) {
                 return;
             }
         }
-        // Get a task chain
-        task_chain chain = r.task_chains.front();
-        r.task_chains.pop();
+        assert(task);
         lock.unlock();
-        while (!chain.empty()) {
-            task_ex_ptr task = chain.front();
-            chain.pop();
-            task->self->run();
-
-            lock.lock();
-            r.done_tasks++;
-            for (auto &t : task->succ) {
-                if (t->visited) {
-                    continue;
-                }
-                std::unique_lock<std::mutex> _(t->mtx);
-                t->pred_num--;
-                if (t->pred_num == 0) {
-                    // Start point t
-                    // lock.lock();
-                    std::queue<task_ex_ptr> q;
-                    task_ex_ptr             tt = t;
-                    while (tt) {
-                        q.push(tt);
-                        tt = r.find_next(tt);
-                    }
-                    r.task_chains.push(q);
-                    r.has_task.notify_one();
-                    // lock.unlock();
-                }
+        task->self->run();
+        for (auto &t : task->succ) {
+            // Require a writer lock
+            std::unique_lock<std::shared_mutex> _(t->mtx);
+            t->pred_num--;
+            if (t->pred_num == 0) {
+                r.has_task.notify_all();
             }
-
-            lock.unlock();
         }
         lock.lock();
-        if (r.task_chains.empty()) {
-            r.all_done.notify_all();
+        r.runtime.task_remaining--;
+        if (r.runtime.task_remaining == 0) {
+            if (r.to_run.empty()) {
+                r.all_done.notify_all();
+            } else {
+                r.runtime = r.to_run.front();
+                r.to_run.pop();
+                r.has_task.notify_all();
+            }
         }
     }
 }
@@ -122,19 +137,26 @@ void runner::commit() {
             rt.all_unnamed_tasks.push_back(task);
         }
     }
+    // Sort for better performance
     std::sort(rt.all_unnamed_tasks.begin(), rt.all_unnamed_tasks.end(),
               [](task_ex_ptr &a, task_ex_ptr &b) { return a->pred_num < b->pred_num; });
     for (size_t i = 0; i < rt.all_named_tasks.size(); ++i) {
         std::sort(rt.all_named_tasks[i].begin(), rt.all_named_tasks[i].end(),
                   [](task_ex_ptr &a, task_ex_ptr &b) { return a->pred_num < b->pred_num; });
     }
-    // std::unique_lock<std::mutex> lock(r.runtime_mtx);
-    r.to_run.enqueue(rt);
+    rt.task_remaining = r.all_tasks.size();
+    {
+        std::unique_lock<std::mutex> lock(r.runtime_mtx);
+        r.to_run.push(rt);
+    }
+    r.task_map.clear();
+    r.all_tasks.clear();
     r.running = true;
     r.has_task.notify_all();
 }
 
-bool runner::is_all_done(){
+bool runner::is_all_done() {
+    // Requires lock acquired beforehand
     runner &r = runner::get();
     return r.runtime.task_remaining == 0 && r.to_run.empty();
 }
@@ -151,7 +173,7 @@ void runner::wait() {
     // No more tasks, cleanup
     r.task_map.clear();
     r.all_tasks.clear();
-    r.running    = false;
+    r.running = false;
 }
 
 void runner::quit() {

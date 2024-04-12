@@ -2,12 +2,12 @@
 
 #include <condition_variable>
 #include <mutex>
+#include <queue>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include "task.hpp"
-#include "ts_queue.hpp"
 
 struct task_runtime {
     /// Tasks that are specified to run on a specific thread
@@ -32,8 +32,8 @@ public:
 
     std::mutex   runtime_mtx;
     task_runtime runtime;
+    std::queue<task_runtime> to_run;
 
-    SafeQueue<task_runtime> to_run;
 
     size_t thread_num();
 

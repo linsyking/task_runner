@@ -4,6 +4,7 @@
 #include <mutex>
 #include <optional>
 #include <queue>
+#include <shared_mutex>
 
 class task;
 using task_ptr = std::shared_ptr<task>;
@@ -27,8 +28,8 @@ struct task_ex {
     /// Runtime predessor number
     size_t pred_num = 0;
 
-    /// Mutex for pred_num
-    std::mutex mtx;
+    /// Reader-writer lock for pred_num
+    std::shared_mutex mtx;
 
     task_ptr self;
 };
