@@ -22,7 +22,6 @@ void task_single_runner() {
     size_t  thread_id = r.thread_num();
 
     std::unique_lock<std::mutex> lock(r.runtime_mtx);
-    std::cout << "Thread " << thread_id << " started\n";
     while (r.started) {
         task_ex_ptr task;
         while (1) {
@@ -57,7 +56,6 @@ void task_single_runner() {
             }
             r.has_task.wait(lock);
             if (!r.started) {
-                std::cout << "Thread " << thread_id << " quited\n";
                 return;
             }
         }
@@ -85,7 +83,6 @@ void task_single_runner() {
             }
         }
     }
-    std::cout << "Thread " << thread_id << " quited\n";
 }
 
 void runner::boot(size_t num_threads) {

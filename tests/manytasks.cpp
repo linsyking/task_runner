@@ -55,7 +55,9 @@ void fun2() {
 
 void fun4() {
     // Sleep for a while
-    std::this_thread::sleep_for(std::chrono::seconds(10));
+    std::cout << "Sleeping..\n";
+    std::this_thread::sleep_for(std::chrono::seconds(3));
+    std::cout << "Infinite task done\n";
 }
 
 int main() {
@@ -78,6 +80,7 @@ int main() {
     runner::commit();
     std::cout << "Commit done, waiting...\n";
     runner::wait();
+    std::cout << "Wait done, quiting...\n";
     runner::quit();
     std::cout << "Quited successfully\n";
     return 0;

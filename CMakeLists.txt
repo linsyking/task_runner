@@ -18,3 +18,6 @@ target_link_libraries(noop trunner)
 
 add_executable(simple tests/simple.cpp)
 target_link_libraries(simple trunner)
+
+add_executable(mpass2 tests/mpass2.cpp)
+target_link_libraries(mpass2 trunner)
