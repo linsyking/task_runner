@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <queue>
 
 class task;
@@ -9,7 +10,9 @@ using task_ptr = std::shared_ptr<task>;
 
 class task {
 public:
-    virtual void run() = 0;
+    /// If not null, run this task on a specific thread
+    std::optional<size_t> run_on = std::nullopt;
+    virtual void          run()  = 0;
     virtual ~task(){};
 };
 
@@ -26,8 +29,6 @@ struct task_ex {
 
     /// Mutex for pred_num
     std::mutex mtx;
-
-    bool visited = false;
 
     task_ptr self;
 };

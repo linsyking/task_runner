@@ -8,6 +8,15 @@
 #include <unordered_set>
 #include <vector>
 #include "task.hpp"
+#include "ts_queue.hpp"
+
+struct task_tuntime{
+    /// Tasks that are specified to run on a specific thread
+    std::vector<std::vector<task_ex_ptr>> all_named_tasks;
+
+    /// Tasks that are not specified to run on a specific thread
+    std::vector<task_ex_ptr> all_unnamed_tasks;
+};
 
 class runner {
 private:
@@ -22,16 +31,17 @@ public:
     bool       terminated = false;
     std::mutex mtx;
 
-    /// A thread-safe queue of task chains
-    std::queue<task_chain>                    task_chains;
+    task_tuntime runtime;
+    SafeQueue<task_tuntime> to_run;
+
+    size_t thread_num();
+
     std::unordered_map<task_ptr, task_ex_ptr> task_map;
     std::unordered_set<task_ex_ptr>           all_tasks;
     size_t                                    done_tasks = 0;
 
     std::condition_variable has_task;
     std::condition_variable done;
-
-    task_ex_ptr find_next(task_ex_ptr);
 
     /// Start the runner with a number of threads
     ///
@@ -48,7 +58,7 @@ public:
     /// Commit and run all the tasks
     static void commit();
 
-    /// Wait for all the tasks to finish so that we can commit again
+    /// Wait for all the tasks to finish
     static void wait();
 
     static void quit();

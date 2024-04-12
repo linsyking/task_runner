@@ -1,9 +1,23 @@
 #include "runner.hpp"
+#include <cassert>
+#include <iostream>
 #include <queue>
 #include "task.hpp"
 
+size_t runner::thread_num() {
+    std::thread::id id = std::this_thread::get_id();
+    for (size_t i = 0; i < threads.size(); ++i) {
+        if (threads[i].get_id() == id) {
+            return i;
+        }
+    }
+    std::cerr << "Thread not found\n";
+    assert(false);
+}
+
 void task_single_runner() {
-    runner                      &r = runner::get();
+    runner                      &r         = runner::get();
+    size_t                       thread_id = r.thread_num();
     std::unique_lock<std::mutex> lock(r.mtx);
     while (!r.terminated) {
         while (r.task_chains.empty()) {
