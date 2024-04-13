@@ -17,8 +17,8 @@ size_t runner::thread_num() {
     assert(false);
 }
 
-void task_single_runner() {
-    runner &r         = runner::get();
+void runner::task_single_runner() {
+    runner &r         = get();
     size_t  thread_id = r.thread_num();
 
     std::unique_lock<std::mutex> lock(r.runtime_mtx);
@@ -98,7 +98,7 @@ void runner::boot(size_t num_threads) {
 }
 
 void runner::add_task(task_ptr a) {
-    runner &r = runner::get();
+    runner &r = get();
     if (!r.started) {
         return;
     }
@@ -114,7 +114,7 @@ void runner::add_task(task_ptr a) {
 }
 
 void runner::add_order(task_ptr a, task_ptr b) {
-    runner &r = runner::get();
+    runner &r = get();
     r.add_task(a);
     r.add_task(b);
     if (!r.started) {
@@ -130,7 +130,7 @@ void runner::add_order(task_ptr a, task_ptr b) {
 }
 
 void runner::commit() {
-    runner &r = runner::get();
+    runner &r = get();
     if (!r.started || r.all_tasks.empty()) {
         return;
     }
@@ -167,12 +167,12 @@ void runner::commit() {
 
 bool runner::is_all_done() {
     // Requires lock acquired beforehand
-    runner &r = runner::get();
+    runner &r = get();
     return !r.runtime.has_value() && r.to_run.empty();
 }
 
 void runner::wait() {
-    runner &r = runner::get();
+    runner &r = get();
     if (!r.started || !r.running) {
         return;
     }
@@ -188,7 +188,7 @@ void runner::wait() {
 }
 
 void runner::quit() {
-    runner &r = runner::get();
+    runner &r = get();
     if (!r.started) {
         return;
     }

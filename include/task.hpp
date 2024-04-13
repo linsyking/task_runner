@@ -3,6 +3,7 @@
 #include <memory>
 #include <optional>
 #include <shared_mutex>
+#include <vector>
 
 class task;
 using task_ptr = std::shared_ptr<task>;
