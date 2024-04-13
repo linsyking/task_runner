@@ -1,9 +1,8 @@
 #include "runner.hpp"
 #include <algorithm>
-#include <cassert>
-#include <iostream>
 #include <mutex>
 #include <shared_mutex>
+#include <stdexcept>
 #include "task.hpp"
 
 size_t runner::thread_num() {
@@ -13,8 +12,8 @@ size_t runner::thread_num() {
             return i;
         }
     }
-    std::cerr << "Thread not found\n";
-    assert(false);
+    throw std::runtime_error("Thread not found");
+    return 0;
 }
 
 void runner::task_single_runner() {
@@ -59,7 +58,6 @@ void runner::task_single_runner() {
                 return;
             }
         }
-        assert(task);
         lock.unlock();
         task->self->run();
         for (auto &t : task->succ) {
@@ -104,8 +102,7 @@ void runner::add_task(task_ptr a) {
     }
     if (r.task_map.find(a) == r.task_map.end()) {
         if (a->run_on.has_value() && a->run_on.value() >= r.threads.size()) {
-            std::cerr << "Thread " << a->run_on.value() << " not found\n";
-            exit(1);
+            throw std::runtime_error("Thread index out of range");
         }
         r.task_map[a]       = std::make_shared<task_ex>();
         r.task_map[a]->self = a;
