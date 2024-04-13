@@ -13,7 +13,6 @@ size_t runner::thread_num() {
         }
     }
     throw std::runtime_error("Thread not found");
-    return 0;
 }
 
 void runner::task_single_runner() {
